@@ -28,3 +28,27 @@ def picture_description():
             PictureDescriptionApiModel,
         ]
     }
+
+
+def layout_engines():
+    from docling.experimental.models.table_crops_layout_model import (
+        TableCropsLayoutModel,
+    )
+    from docling.models.layout_model import LayoutModel
+
+    return {
+        "layout_engines": [
+            LayoutModel,
+            TableCropsLayoutModel,
+        ]
+    }
+
+
+def table_structure_engines():
+    from docling.models.table_structure_model import TableStructureModel
+
+    return {
+        "table_structure_engines": [
+            TableStructureModel,
+        ]
+    }
