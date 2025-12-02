@@ -12,14 +12,14 @@ from docling.document_converter import DocumentConverter
 app = FastAPI()
 
 # -------------------------------
-# Config (ใช้ ENV ของ Railway)
+# Config
 # -------------------------------
-MEILI_URL = os.getenv("MEILI_URL", "http://localhost:7700/indexes/documents/documents")
-OLLAMA_API = os.getenv("OLLAMA_API", "http://localhost:11434/api/generate")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
+MEILI_URL = "http://10.1.0.150:7700/indexes/documents/documents"
+OLLAMA_API = "http://10.1.0.150:11434/api/generate"
+OLLAMA_MODEL = "llama3.2:latest"
 
-# Tesseract (Linux → ไม่ต้องระบุ path)
-pytesseract.pytesseract.tesseract_cmd = "tesseract"
+# Tesseract
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
 # --------------------------------------------------
@@ -55,7 +55,7 @@ def check_filename_keywords(text, filename):
 
 def classify_document(markdown_text: str) -> str:
     prompt = f"""
-จำแนกเอกสารนี้เป็นประเภท:
+จำแนกเอกสารนี้เป็นหนึ่งในประเภท:
 
 1. ข้อมูลที่เกี่ยวข้องกับการประกอบธุรกิจ บัตรเครดิต  
 2. ทะเบียนผู้ถือหุ้นของบริษัทฉบับล่าสุด  
@@ -65,7 +65,7 @@ def classify_document(markdown_text: str) -> str:
 6. โครงสร้างกลุ่มธุรกิจ  
 7. นโยบายและคู่มือปฏิบัติงาน  
 
-ตอบรูปแบบ "3. เอกสารแสดงฐานะทางการเงิน"
+ตอบเฉพาะหมายเลข + ชื่อประเภท เช่น "3. เอกสารแสดงฐานะทางการเงิน"
 
 เนื้อหา:
 {markdown_text[:800]}
@@ -87,6 +87,7 @@ def classify_document(markdown_text: str) -> str:
 
     combined = combined.strip()
     first_line = combined.splitlines()[0] if combined else ""
+
     match = re.search(r"^\d+\.\s*.+$", first_line)
     return match.group(0).strip() if match else first_line
 
@@ -102,18 +103,21 @@ def extract_license(markdown):
     matches = re.findall(pattern, markdown)
     return matches or "ไม่พบ license"
 
-
 def extract_contact_time(markdown):
+    """
+    ดึงช่วงเวลาในการติดต่อลูกค้า
+    สมมติรูปแบบเช่น "เวลาโทร: 09:00-17:00" หรือ "Contact time: 09:00-17:00"
+    """
     pattern = r'(เวลา\s*(?:โทร|ติดต่อ)[^\n:]*[:\s]*\d{1,2}:\d{2}-\d{1,2}:\d{2}|Contact time[^\n]*[:\s]*\d{1,2}:\d{2}-\d{1,2}:\d{2})'
     matches = re.findall(pattern, markdown)
     return matches or "ไม่พบช่วงเวลาติดต่อ"
 
-
 # --------------------------------------------------
-# MAIN PROCESS FUNCTION
+# MAIN PROCESS FUNCTION (ไม่ print แต่ return dict)
 # --------------------------------------------------
 def process_pdf_to_meili(pdf_path: str, filename: str):
 
+    # 1) แปลง PDF → Markdown
     converter = DocumentConverter()
     try:
         result = converter.convert(pdf_path)
@@ -126,9 +130,13 @@ def process_pdf_to_meili(pdf_path: str, filename: str):
     except:
         text_for_ai = ocr_pdf_tesseract(pdf_path)
 
+    # 2) เช็คชื่อไฟล์
     filename_check = check_filename_keywords(text_for_ai, filename)
+
+    # 3) AI จำแนกเอกสาร
     doc_type = classify_document(text_for_ai)
 
+    # 4) Extract ตามประเภทใหม่
     if doc_type.startswith("1"):
         extracted_info = extract_contact_time(text_for_ai)
     elif doc_type.startswith("2"):
@@ -138,10 +146,13 @@ def process_pdf_to_meili(pdf_path: str, filename: str):
     elif doc_type.startswith("4"):
         extracted_info = extract_license(text_for_ai)
     elif doc_type.startswith("6"):
-        extracted_info = extract_share_ratio(text_for_ai)
+        extracted_info = extract_share_ratio(text_for_ai)  # ประเภท 6 ต้องการตัวเลขสัดส่วนผู้ถือหุ้น
     else:
         extracted_info = "ไม่มีข้อมูลที่ต้องดึง"
 
+
+
+    # 5) เตรียม JSON 
     doc_id = "DL" + str(uuid.uuid4())
     now_str = datetime.now().isoformat()
 
@@ -157,9 +168,14 @@ def process_pdf_to_meili(pdf_path: str, filename: str):
     }
     return data
 
+# --------------------------------------------------
+# FastAPI Endpoints
+# --------------------------------------------------
 
 @app.post("/process-pdf")
 async def process_pdf(file: UploadFile = File(...)):
+
+    # เซฟไฟล์ลงเครื่องก่อน
     temp_path = f"temp_{uuid.uuid4()}.pdf"
     with open(temp_path, "wb") as f:
         f.write(await file.read())
