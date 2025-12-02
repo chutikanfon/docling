@@ -59,9 +59,14 @@ class TableFormerMode(str, Enum):
     ACCURATE = "accurate"
 
 
-class TableStructureOptions(BaseModel):
+class BaseTableStructureOptions(BaseOptions):
+    """Base options for table structure models."""
+
+
+class TableStructureOptions(BaseTableStructureOptions):
     """Options for the table structure."""
 
+    kind: ClassVar[str] = "docling_tableformer"
     do_cell_matching: bool = (
         True
         # True:  Matches predictions back to PDF cells. Can break table output if PDF cells
@@ -308,17 +313,23 @@ class VlmPipelineOptions(PaginatedPipelineOptions):
     )
 
 
-class LayoutOptions(BaseModel):
-    """Options for layout processing."""
+class BaseLayoutOptions(BaseOptions):
+    """Base options for layout models."""
 
-    create_orphan_clusters: bool = True  # Whether to create clusters for orphaned cells
     keep_empty_clusters: bool = (
         False  # Whether to keep clusters that contain no text cells
     )
-    model_spec: LayoutModelConfig = DOCLING_LAYOUT_HERON
     skip_cell_assignment: bool = (
         False  # Skip cell-to-cluster assignment for VLM-only processing
     )
+
+
+class LayoutOptions(BaseLayoutOptions):
+    """Options for layout processing."""
+
+    kind: ClassVar[str] = "docling_layout_default"
+    create_orphan_clusters: bool = True  # Whether to create clusters for orphaned cells
+    model_spec: LayoutModelConfig = DOCLING_LAYOUT_HERON
 
 
 class AsrPipelineOptions(PipelineOptions):
@@ -343,9 +354,9 @@ class PdfPipelineOptions(PaginatedPipelineOptions):
     )
     # If True, text from backend will be used instead of generated text
 
-    table_structure_options: TableStructureOptions = TableStructureOptions()
+    table_structure_options: BaseTableStructureOptions = TableStructureOptions()
     ocr_options: OcrOptions = OcrAutoOptions()
-    layout_options: LayoutOptions = LayoutOptions()
+    layout_options: BaseLayoutOptions = LayoutOptions()
 
     images_scale: float = 1.0
     generate_page_images: bool = False

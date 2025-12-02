@@ -43,6 +43,21 @@ Setting a higher `page_batch_size` will run the Docling models (in particular th
 
 For a complete example see [gpu_standard_pipeline.py](../examples/gpu_standard_pipeline.py).
 
+#### OCR engines
+
+The current Docling OCR engines rely on third-party libraries, hence GPU support depends on the availability in the respective engines.
+
+The only setup which is known to work at the moment is RapidOCR with the torch backend, which can be enabled via
+
+```py
+pipeline_options = PdfPipelineOptions()
+pipeline_options.ocr_options = RapidOcrOptions(
+    backend="torch",
+)
+```
+
+More details in the GitHub discussion [#2451](https://github.com/docling-project/docling/discussions/2451).
+
 
 ### VLM Pipeline
 
@@ -111,18 +126,38 @@ TBA.
 
 ## Performance results
 
-Test data:
-- Number of pages: 192
-- Number of tables: 95
+### Test data
 
-Test infrastructure:
-- Instance type: `g6e.2xlarge`
-- CPU: 8 vCPUs, AMD EPYC 7R13
-- RAM: 64GB
-- GPU: NVIDIA L40S 48GB
-- CUDA Version: 13.0, Driver Version: 580.95.05
+| | PDF doc | [ViDoRe V3 HR](https://huggingface.co/datasets/vidore/vidore_v3_hr) |
+| - | - | - |
+| Num docs | 1 | 14 |
+| Num pages | 192 | 1110 |
+| Num tables | 95 | 258 |
+| Format type | PDF | Parquet of images |
 
-| Pipeline | Page efficiency |
-| - | - |
-| Standard - Inline | 3.1 pages/second |
-| VLM - Inference server (GraniteDocling) | 2.4 pages/second |
+
+### Test infrastructure
+
+| | g6e.2xlarge | RTX 5090 | RTX 5070 |
+| - | - | - | - |
+| Description | AWS instance `g6e.2xlarge` | Linux bare metal machine | Windows 11 bare metal machine |
+| CPU | 8 vCPUs, AMD EPYC 7R13 | 16 vCPU, AMD Ryzen 7 9800 | 16 vCPU, AMD Ryzen 7 9800 |
+| RAM | 64GB | 128GB | 64GB |
+| GPU | NVIDIA L40S 48GB | NVIDIA GeForce RTX 5090 | NVIDIA GeForce RTX 5070 |
+| CUDA Version | 13.0, driver 580.95.05 | 13.0, driver 580.105.08 | 13.0, driver 581.57 |
+
+
+### Results
+
+<table>
+  <thead>
+    <tr><th rowspan="2">Pipeline</th><th colspan="2">g6e.2xlarge</th><th colspan="2">RTX 5090</th><th colspan="2">RTX 5070</th></tr>
+    <tr><th>PDF doc</th><th>ViDoRe V3 HR</th><th>PDF doc</th><th>ViDoRe V3 HR</th><th>PDF doc</th><th>ViDoRe V3 HR</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Standard - Inline (no OCR)</td><td>3.1 pages/second</td><td>-</td><td>7.9 pages/second<br /><small><em>[cpu-only]* 1.5 pages/second</em></small></td><td>-</td><td>4.2 pages/second<br /><small><em>[cpu-only]* 1.2 pages/second</em></small></td><td>-</td></tr>
+    <tr><td>VLM - Inference server (GraniteDocling)</td><td>2.4 pages/second</td><td>-</td><td>3.8 pages/second</td><td>3.6-4.5 pages/second</td><td>-</td><td>-</td></tr>
+  </tbody>
+</table>
+
+_* cpu-only timing computed with 16 pytorch threads._
