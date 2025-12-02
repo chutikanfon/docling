@@ -1,7 +1,4 @@
 fastapi
-uvicorn[standard]
-requests
-pytesseract
-pypdfium2
-docling
+pymupdf
+uvicorn
 python-multipart
